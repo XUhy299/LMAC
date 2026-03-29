@@ -1,0 +1,45 @@
+version: '3.8'
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: agentic-rag-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+  mysql:
+    image: mysql:8.0
+    container_name: agentic-rag-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: agentic_rag
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  api:
+    build: .
+    container_name: agentic-rag-api
+    ports:
+      - "8000:8000"
+    environment:
+      - ES_HOST=elasticsearch
+      - MYSQL_HOST=mysql
+      - MOCK_LLM=true
+    depends_on:
+      - elasticsearch
+      - mysql
+    volumes:
+      - ./knowledge_base:/app/knowledge_base
+    command: python -m agentic_rag.main api
+
+volumes:
+  es_data:
+  mysql_data:

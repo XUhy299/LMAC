@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agentic RAG</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ==================== Login Modal ==================== -->
+<div id="login-modal" class="modal-overlay">
+  <div class="modal-card auth-card">
+    <div class="auth-logo">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">Agentic RAG</span>
+    </div>
+    <div class="auth-tabs">
+      <button class="auth-tab active" data-tab="login">登录</button>
+      <button class="auth-tab" data-tab="register">注册</button>
+    </div>
+
+    <form id="login-form" class="auth-form">
+      <div class="form-group">
+        <label>用户名</label>
+        <input id="login-username" type="text" placeholder="输入用户名" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input id="login-password" type="password" placeholder="输入密码" required autocomplete="current-password" />
+      </div>
+      <p id="login-error" class="form-error"></p>
+      <button type="submit" class="btn-primary btn-full">登录</button>
+    </form>
+
+    <form id="register-form" class="auth-form" style="display:none">
+      <div class="form-group">
+        <label>用户名</label>
+        <input id="reg-username" type="text" placeholder="输入用户名" required autocomplete="username" />
+      </div>
+      <div class="form-group">
+        <label>邮箱</label>
+        <input id="reg-email" type="email" placeholder="输入邮箱" required autocomplete="email" />
+      </div>
+      <div class="form-group">
+        <label>密码</label>
+        <input id="reg-password" type="password" placeholder="输入密码" required autocomplete="new-password" />
+      </div>
+      <p id="reg-error" class="form-error"></p>
+      <button type="submit" class="btn-primary btn-full">注册</button>
+    </form>
+  </div>
+</div>
+
+<!-- ==================== Main App ==================== -->
+<div id="app" style="display:none">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="logo-icon">⬡</span>
+      <span class="logo-text">Agentic RAG</span>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="sidebar-nav">
+      <button class="nav-item active" data-view="chat">
+        <span class="nav-icon">💬</span>
+        <span class="nav-label">对话</span>
+      </button>
+      <button class="nav-item" data-view="kbs">
+        <span class="nav-icon">📚</span>
+        <span class="nav-label">知识库</span>
+      </button>
+      <button class="nav-item" data-view="stats">
+        <span class="nav-icon">📊</span>
+        <span class="nav-label">统计</span>
+      </button>
+    </nav>
+
+    <!-- Conversation List -->
+    <div class="conv-section">
+      <div class="conv-header">
+        <span class="conv-header-label">对话历史</span>
+        <button id="new-conv-btn" class="btn-icon" title="新建对话">+</button>
+      </div>
+      <div id="conv-list" class="conv-list"></div>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings-panel">
+      <div class="settings-title">历史轮数 (N)</div>
+      <div class="settings-row">
+        <input id="rounds-slider" type="range" min="1" max="50" value="10" class="slider" />
+        <span id="rounds-display" class="rounds-display">10</span>
+      </div>
+    </div>
+
+    <!-- Logout -->
+    <div class="sidebar-footer">
+      <button id="logout-btn" class="btn-ghost btn-full">退出登录</button>
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Chat Panel -->
+    <div id="panel-chat" class="view-panel" style="display:flex">
+      <div class="chat-header">
+        <div class="chat-header-left">
+          <span class="chat-title">智能对话</span>
+          <button id="mode-toggle" class="mode-btn">Agentic</button>
+        </div>
+        <div class="chat-header-right">
+          <label class="kb-selector-label">知识库:</label>
+          <select id="kb-selector" class="kb-selector">
+            <option value="">全部知识库</option>
+          </select>
+        </div>
+      </div>
+      <div id="messages" class="messages-area"></div>
+      <div class="input-bar">
+        <textarea
+          id="chat-input"
+          class="chat-textarea"
+          placeholder="输入消息，按 Enter 发送（Shift+Enter 换行）"
+          rows="1"
+        ></textarea>
+        <button id="send-btn" class="btn-send">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Knowledge Base Panel -->
+    <div id="panel-kbs" class="view-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">知识库管理</span>
+      </div>
+      <div class="panel-body">
+        <!-- Create KB Form -->
+        <div class="kb-form">
+          <h3 class="kb-form-title">创建新知识库</h3>
+          <div class="kb-form-row">
+            <div class="kb-form-group">
+              <label>名称</label>
+              <input id="kb-name-input" type="text" placeholder="知识库名称" />
+            </div>
+            <div class="kb-form-group kb-form-path">
+              <label>本地路径</label>
+              <input id="kb-path-input" type="text" placeholder="例如: D:\\Documents\\Knowledge" />
+            </div>
+          </div>
+          <div class="kb-form-row">
+            <div class="kb-form-group kb-form-desc">
+              <label>描述（可选）</label>
+              <input id="kb-desc-input" type="text" placeholder="知识库描述" />
+            </div>
+            <div class="kb-form-group">
+              <label>文件类型</label>
+              <input id="kb-types-input" type="text" value=".pdf,.txt,.md" placeholder=".pdf,.txt,.md" />
+            </div>
+          </div>
+          <button id="kb-create-btn" class="btn-primary">创建知识库</button>
+        </div>
+
+        <!-- KB List -->
+        <div class="kb-section">
+          <h3 class="kb-section-title">我的知识库</h3>
+          <div id="kb-list" class="kb-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Panel -->
+    <div id="panel-stats" class="view-panel" style="display:none">
+      <div class="panel-header">
+        <span class="panel-title">使用统计</span>
+      </div>
+      <div class="panel-body">
+        <div id="stats-grid" class="stats-grid">
+          <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">总对话数</div></div>
+          <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">总消息数</div></div>
+          <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">知识库数量</div></div>
+          <div class="stat-card"><div class="stat-value">-</div><div class="stat-label">文本块数</div></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
