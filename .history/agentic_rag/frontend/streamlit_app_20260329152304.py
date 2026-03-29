@@ -141,10 +141,15 @@ def sidebar():
                 ["💬 智能问答", "📁 文档管理", "📊 使用统计"]
             )
             
-
+            # --- 关键修改：找回对话管理 ---
+            # 只有在“智能问答”模式下，才在侧边栏渲染对话历史和“新建对话”按钮
+            # 这样历史列表就回到了左侧，而聊天框在右侧主区域
             if menu == "💬 智能问答":
                 show_conversations()
-
+            
+            # 注意：不要在这里调用 show_document_manager() 或 show_stats()
+            # 它们已经在 main() 函数中被渲染到主界面了
+            
             return menu
         else:
             st.info("请先登录")

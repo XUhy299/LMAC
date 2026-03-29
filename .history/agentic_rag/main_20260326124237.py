@@ -9,7 +9,7 @@
   python main.py init               # 仅初始化数据库
 
 环境变量:
-  MOCK_LLM=true           # 跳过真实 LLM，使用 mock 响应
+  MOCK_LLM=true           # 跳过真实 LLM，使用 mock 响应（无需 Ollama）
 """
 import os
 import sys

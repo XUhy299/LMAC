@@ -39,10 +39,6 @@ ES_MIN_SCORE = float(os.getenv("ES_MIN_SCORE", "0.5"))  # 最小相似度阈值
 # ==================== 模型来源配置 ====================
 USE_LOCAL_MODELS = os.getenv("USE_LOCAL_MODELS", "false").lower() == "true"
 
-# ==================== vLLM配置 ====================
-VLLM_BASE_URL = os.getenv("VLLM_BASE_URL", "http://localhost:8000/v1")
-VLLM_API_KEY = os.getenv("VLLM_API_KEY", "EMPTY")
-
 # ==================== Ollama模型配置 ====================
 DECOMPOSE_MODEL = os.getenv("DECOMPOSE_MODEL", "deepseek-r1:8b")
 ANSWER_MODEL = os.getenv("ANSWER_MODEL", "qwen2.5:3b")
@@ -66,7 +62,7 @@ RERANK_CANDIDATES = int(os.getenv("RERANK_CANDIDATES", "10"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.5"))
 
 # ==================== Embedding模型配置 ====================
-EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "/root/autodl-tmp/models/maidalun/bge-embedding-base_v1")
+EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "/root/autodl-tmp/models/maidalun/bce-embedding-base_v1")
 
 # ==================== 重排序模型配置 ====================
 RERANKER_MODEL = os.getenv("RERANKER_MODEL", "/root/autodl-tmp/models/BAAI/bge-reranker-v2-m3")
@@ -87,7 +83,7 @@ STREAMLIT_PORT = int(os.getenv("STREAMLIT_PORT", "8501"))
 LOG_FILE = str(BASE_DIR / "logs" / "agentic_rag.log")
 
 # ==================== Summary Memory配置 ====================
-SUMMARY_LLM_MODEL = os.getenv("SUMMARY_LLM_MODEL")
+SUMMARY_LLM_MODEL = os.getenv("SUMMARY_LLM_MODEL", "qwen2.5:3b")
 SUMMARY_LLM_TEMPERATURE = float(os.getenv("SUMMARY_LLM_TEMPERATURE", "0.3"))
 SUMMARY_MAX_TOKEN_LIMIT = int(os.getenv("SUMMARY_MAX_TOKEN_LIMIT", "2000"))
 

@@ -74,17 +74,6 @@ class ConversationCache:
         return list(self._store.get(conversation_id, []))
 
     def get_context_string(self, conversation_id: int, exclude_last: int = 1) -> str:
-        """
-        构建传给 LLM 的历史上下文字符串。
-
-        exclude_last: 排除末尾 N 条（默认排除最后 1 条，
-                      即刚写入的当前用户消息，避免重复出现在 context 里）
-
-        返回格式：
-            用户: ...
-            助手: ...
-            用户: ...
-        """
         msgs = list(self._store.get(conversation_id, []))
 
         if exclude_last:

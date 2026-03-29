@@ -1,7 +1,4 @@
-"""
-Agent工作流 - 使用LangGraph实现智能RAG流程
-面试亮点：展示对Agent架构、工作流编排的理解
-"""
+
 from typing import TypedDict, List, Dict, Any, Optional, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json

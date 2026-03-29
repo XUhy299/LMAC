@@ -659,6 +659,28 @@ class LLMWrapper:
         self.embedding_url = f"{base_url}/api/embeddings"
         self.generate_url = f"{base_url}/api/generate"
 
+        # vLLM 配置
+        self.vllm_url = config.VLLM_BASE_URL.rstrip("/")
+        self.vllm_api_key = config.VLLM_API_KEY
+        self.backend = self._detect_backend()
+
+    def _detect_backend(self) -> str:
+        """检测可用后端，优先 vLLM"""
+        try:
+            headers = {"Authorization": f"Bearer {self.vllm_api_key}"}
+            response = requests.get(
+                f"{self.vllm_url}/models",
+                headers=headers,
+                timeout=5
+            )
+            if response.status_code == 200:
+                print(f"[LLMWrapper] 使用 vLLM 后端: {self.vllm_url}")
+                return "vllm"
+        except Exception:
+            pass
+        print(f"[LLMWrapper] vLLM 不可用，回退到 Ollama: {self.base_url}")
+        return "ollama"
+
     def _generate_with_retry(
         self,
         payload: Dict[str, Any],
@@ -683,24 +705,71 @@ class LLMWrapper:
                     raise e
         return {}
 
-    def generate(
+    def _generate_vllm(
         self,
         prompt: str,
-        model: str = None,
-        system_prompt: str = "",
-        temperature: float = 0.7,
-        max_tokens: int = 4096,
-        stream: bool = False
+        system_prompt: str,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        stream: bool
     ) -> Dict[str, Any]:
-        """
-        生成文本
-        返回: {"response": str, "duration": float, "model": str}
-        """
-        model = model or self.default_model
+        """vLLM 生成（OpenAI 兼容接口）"""
+        url = f"{self.vllm_url}/chat/completions"
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-        if config.MOCK_LLM:
-            return self._mock_generate(prompt, model)
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": stream,
+            "top_p": 0.9,
+        }
+        headers = {"Authorization": f"Bearer {self.vllm_api_key}"}
+        start_time = time.time()
 
+        try:
+            if stream:
+                response_text = ""
+                with requests.post(url, json=payload, headers=headers, timeout=120, stream=True) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        if line:
+                            decoded = line.decode('utf-8')
+                            if decoded.startswith("data: "):
+                                data_str = decoded[6:]
+                                if data_str == "[DONE]":
+                                    break
+                                data = json.loads(data_str)
+                                delta = data.get("choices", [{}])[0].get("delta", {})
+                                response_text += delta.get("content", "")
+                duration = time.time() - start_time
+                return {"response": response_text, "duration": duration, "model": model}
+            else:
+                resp = requests.post(url, json=payload, headers=headers, timeout=120)
+                resp.raise_for_status()
+                result = resp.json()
+                response_text = result["choices"][0]["message"]["content"]
+                duration = time.time() - start_time
+                return {"response": response_text, "duration": duration, "model": model}
+        except Exception as e:
+            duration = time.time() - start_time
+            return {"response": f"vLLM 生成失败: {str(e)}", "duration": duration, "model": model}
+
+    def _generate_ollama(
+        self,
+        prompt: str,
+        system_prompt: str,
+        model: str,
+        temperature: float,
+        max_tokens: int,
+        stream: bool
+    ) -> Dict[str, Any]:
+        """Ollama 生成"""
         full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
 
         payload = {
@@ -730,33 +799,62 @@ class LLMWrapper:
                             data = json.loads(line.decode('utf-8'))
                             token = data.get("response", "")
                             response_text += token
-
                             if data.get("done", False):
                                 break
-
                 duration = time.time() - start_time
-                return {
-                    "response": response_text,
-                    "duration": duration,
-                    "model": model
-                }
+                return {"response": response_text, "duration": duration, "model": model}
             else:
                 result = self._generate_with_retry(payload)
-
                 duration = time.time() - start_time
                 return {
                     "response": result.get("response", "") if result else "",
                     "duration": duration,
                     "model": model
                 }
-
         except Exception as e:
             duration = time.time() - start_time
             return {
-                "response": f"生成失败: {str(e)}",
+                "response": f"Ollama 生成失败: {str(e)}",
                 "duration": duration,
                 "model": model
             }
+
+    def generate(
+        self,
+        prompt: str,
+        model: str = None,
+        system_prompt: str = "",
+        temperature: float = 0.7,
+        max_tokens: int = 4096,
+        stream: bool = False
+    ) -> Dict[str, Any]:
+        """
+        生成文本
+        返回: {"response": str, "duration": float, "model": str}
+        """
+        model = model or self.default_model
+
+        if config.MOCK_LLM:
+            return self._mock_generate(prompt, model)
+
+        if self.backend == "vllm":
+            return self._generate_vllm(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
+            )
+        else:
+            return self._generate_ollama(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                stream=stream
+            )
 
     def chat(
         self,
@@ -769,6 +867,13 @@ class LLMWrapper:
         messages: [{"role": "user/assistant/system", "content": "..."}]
         """
         model = model or self.default_model
+
+        if config.MOCK_LLM:
+            prompt = "\n".join([f"{m['role']}: {m['content']}" for m in messages])
+            return self._mock_generate(prompt, model)
+
+        if self.backend == "vllm":
+            return self._vllm_chat(messages, model, temperature)
 
         system_prompt = ""
         user_prompt = ""
@@ -785,6 +890,35 @@ class LLMWrapper:
             system_prompt=system_prompt,
             temperature=temperature
         )
+
+    def _vllm_chat(
+        self,
+        messages: List[Dict[str, str]],
+        model: str,
+        temperature: float
+    ) -> Dict[str, Any]:
+        """vLLM 对话（OpenAI 兼容接口）"""
+        url = f"{self.vllm_url}/chat/completions"
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": 4096,
+            "stream": False,
+            "top_p": 0.9,
+        }
+        headers = {"Authorization": f"Bearer {self.vllm_api_key}"}
+        start_time = time.time()
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=120)
+            resp.raise_for_status()
+            result = resp.json()
+            response_text = result["choices"][0]["message"]["content"]
+            duration = time.time() - start_time
+            return {"response": response_text, "duration": duration, "model": model}
+        except Exception as e:
+            duration = time.time() - start_time
+            return {"response": f"vLLM 对话失败: {str(e)}", "duration": duration, "model": model}
 
     def _mock_generate(self, prompt: str, model: str) -> Dict[str, Any]:
         """Mock LLM - 测试时不需要真实 API"""
